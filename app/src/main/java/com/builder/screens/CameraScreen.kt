@@ -15,7 +15,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -63,7 +67,7 @@ fun CameraScreen(
             }
         } else {
             CameraPreview(controller, Modifier.fillMaxSize())
-            
+
             val alpha by animateFloatAsState(targetValue = if (showFlash) 1f else 0f, animationSpec = tween(100), finishedListener = { showFlash = false })
             Box(Modifier.fillMaxSize().alpha(alpha).background(Color.White))
 
@@ -83,15 +87,15 @@ fun CameraScreen(
                     controller.cameraSelector = if (controller.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
                         CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
                 }) { Icon(Icons.Default.Cameraswitch, null, tint = Color.White) }
-                
+
                 IconButton(
-                    onClick = { 
+                    onClick = {
                         showFlash = true
                         takePhoto(context, controller, isHighQuality, options, currentLoc, currentAddress) { preview = it }
                     },
                     modifier = Modifier.size(80.dp)
                 ) { Icon(Icons.Default.Circle, null, tint = Color.White, modifier = Modifier.size(80.dp)) }
-                
+
                 IconButton(onOpenGallery) { Icon(Icons.Default.PhotoLibrary, null, tint = Color.White) }
             }
         }
@@ -113,7 +117,7 @@ private fun takePhoto(
                 val matrix = Matrix().apply { postRotate(img.imageInfo.rotationDegrees.toFloat()) }
                 Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
             }
-            
+
             val wm = WatermarkManager.apply(b, currentLoc, currentAddr, opt)
             FileManager.saveImageToGallery(context, wm, hq)
             onRes(wm)

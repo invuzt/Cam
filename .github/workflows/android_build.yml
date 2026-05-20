@@ -19,14 +19,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Langkah Baru: Install Rust Toolchain untuk Android (Arm64 dan x86_64)
     - name: Set up Rust Toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
-        targets: aarch64-linux-android, x86_64-linux-android
+        targets: aarch64-linux-android
 
-    # Langkah Baru: Install cargo-ndk untuk memudahkan cross-compile ke Android
     - name: Install cargo-ndk
       run: cargo install cargo-ndk
 
@@ -35,26 +33,23 @@ jobs:
       with:
         gradle-version: '8.7'
 
-    # Langkah Baru: Kompilasi kode Rust menjadi .so sebelum Gradle merakit APK
     - name: Build Rust Native Library
       run: |
         cd app/src/main/rust
-        # Compile untuk arsitektur HP modern (Arm64-v8a)
         cargo ndk --target aarch64-linux-android build --release
-        
-        # Pindahkan hasil compile .so ke folder jniLibs Android agar otomatis dibungkus ke APK
         mkdir -p ../jniLibs/arm64-v8a
         cp target/aarch64-linux-android/release/librust_engine.so ../jniLibs/arm64-v8a/
 
-    - name: Build Android APK with Gradle
+    - name: Build Android APK Release Mode
       run: |
         APP_PATH=$(find . -name "build.gradle" -exec grep -l "com.android.application" {} \;)
         PROJECT_ROOT=$(dirname $(dirname "$APP_PATH"))
         cd "$PROJECT_ROOT"
-        gradle assembleDebug --parallel --no-daemon
+        # Diubah ke assembleRelease agar R8/Minify berjalan dan ukuran mengecil tajam
+        gradle assembleRelease --parallel --no-daemon
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4.6.0
       with:
         name: CamRU-Hybrid-Rust-APK
-        path: "**/build/outputs/apk/debug/*.apk"
+        path: "**/build/outputs/apk/release/*.apk"

@@ -7,9 +7,13 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-# JNI untuk komunikasi dengan Java/Kotlin
 jni = "0.21.1"
-# Library image untuk pengolahan pixel dan kompresi
 image = { version = "0.24.7", default-features = false, features = ["jpeg", "png", "webp"] }
-# Rayon untuk pemrosesan paralel (Sat-set khas Rust)
 rayon = "1.8.0"
+
+[profile.release]
+opt-level = 'z'     # Optimasi ukuran biner terkecil
+lto = true          # Link Time Optimization
+codegen-units = 1
+panic = 'abort'     # Potong stack trace panic
+strip = true        # Hapus debug symbols otomatis
