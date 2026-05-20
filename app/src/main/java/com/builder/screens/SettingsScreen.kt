@@ -1,7 +1,6 @@
 package com.builder.screens
 
 import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,7 +22,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("camru_prefs", Context.MODE_PRIVATE) }
     
-    // Sinkronisasi State dengan Gambar yang diupload
+    // State lengkap termasuk Vivid Rust
+    var useRust by remember { mutableStateOf(prefs.getBoolean("use_rust_compress", true)) }
     var isHq by remember { mutableStateOf(prefs.getBoolean("hq", true)) }
     var isPro by remember { mutableStateOf(prefs.getBoolean("is_pro", false)) }
     var showTime by remember { mutableStateOf(prefs.getBoolean("w_time", true)) }
@@ -54,10 +54,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            Text("Engine Core", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Toggle Utama yang tadi sempat hilang
+            SettingRow("Vivid Rust Enhance", useRust) { useRust = it; prefs.edit().putBoolean("use_rust_compress", it).apply() }
+            
+            Spacer(modifier = Modifier.height(16.dp))
             Text("Watermark Config", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Switch items sesuai screenshot
             SettingRow("High Quality Photo (Slow Save)", isHq) { isHq = it; prefs.edit().putBoolean("hq", it).apply() }
             SettingRow("Aktivasi Lisensi Pro (Premium)", isPro) { isPro = it; prefs.edit().putBoolean("is_pro", it).apply() }
             
@@ -74,10 +80,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onValueChange = { customText = it; prefs.edit().putString("w_custom", it).apply() },
                 label = { Text("Teks Kustom", color = Color.Gray) },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                textStyle = LocalTextStyle.current.copy(color = Color.White)
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White)
             )
 
-            // About App Section
             Text("About App", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(modifier = Modifier.height(8.dp))
             Card(
@@ -89,8 +94,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Text("License: Open Source (MIT)", color = Color.Gray, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Engine Dependencies:", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    val deps = listOf("Jetpack Compose", "CameraX", "Google Play Services", "Kotlin Coroutines")
-                    deps.forEach { Text("• $it", color = Color.Gray, fontSize = 12.sp) }
+                    listOf("Jetpack Compose", "CameraX", "Google Play Services", "Kotlin Coroutines").forEach { 
+                        Text("• $it", color = Color.Gray, fontSize = 12.sp) 
+                    }
                 }
             }
         }
