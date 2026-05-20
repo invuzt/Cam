@@ -3,6 +3,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.camera.core.CameraSelector            
@@ -21,9 +23,7 @@ import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*                   
-import androidx.compose.runtime.*                     
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color             
@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.builder.utils.*
-import java.io.ByteArrayOutputStream
 
 @Composable
 fun CameraScreen(
@@ -45,7 +44,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("camru_prefs", Context.MODE_PRIVATE) }
     val isHighQuality = prefs.getBoolean("hq", true)
-    val useRustEnhance = prefs.getBoolean("use_rust_compress", false) // Membaca toggle Rust
+    val useRustEnhance = prefs.getBoolean("use_rust_compress", false)
 
     val options = WatermarkOptions(                           
         showTime = prefs.getBoolean("w_time", true),
@@ -95,7 +94,7 @@ fun CameraScreen(
                     onClick = {
                         showFlash = true                                      
                         if (useRustEnhance) {
-                            Toast.makeText(context, "Processing Rust Enhance HDR...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Enhancing Photo with Rust...", Toast.LENGTH_SHORT).show()
                             takePhotoHDR(context, controller, options, currentLoc, currentAddress) { preview = it }
                         } else {
                             takePhoto(context, controller, isHighQuality, options, currentLoc, currentAddress) { preview = it }
@@ -110,7 +109,6 @@ fun CameraScreen(
     }
 }
 
-// Alur Lama: Single Shot & Simpan Biasa via Kotlin
 private fun takePhoto(
     context: Context,
     c: LifecycleCameraController,
@@ -126,7 +124,6 @@ private fun takePhoto(
                 val matrix = Matrix().apply { postRotate(img.imageInfo.rotationDegrees.toFloat()) }
                 Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
             }
-
             val wm = WatermarkManager.apply(b, currentLoc, currentAddr, opt)                                            
             FileManager.saveImageToGallery(context, wm, hq)
             onRes(wm)
@@ -136,7 +133,6 @@ private fun takePhoto(
     })
 }
 
-// Alur Baru: 3x Burst Shot via Exposure Bracketing untuk disetor ke Rust
 private fun takePhotoHDR(
     context: Context,
     c: LifecycleCameraController,
@@ -145,78 +141,55 @@ private fun takePhotoHDR(
     currentAddr: String,
     onRes: (Bitmap) -> Unit
 ) {
-    val cameraControl = c.cameraControl
-    if (cameraControl == null) {
-        Log.e("Err", "Camera control not available")
-        return
-    }
-
-    val exposures = listOf(-2, 0, 2) // Gelap, Normal, Terang
+    val cameraControl = c.cameraControl ?: return
+    val exposures = listOf(-3, 0, 3) // Menambah rentang agar efek HDR lebih kontras
     val capturedBytesList = mutableListOf<ByteArray>()
     var rotationDegrees = 0
+    val handler = Handler(Looper.getMainLooper())
 
-    // Fungsi rekursif internal untuk menjepret antrean sekuensial agar eksposur tidak tumpang tindih
     fun captureStep(index: Int) {
         if (index >= exposures.size) {
-            // Semua 3 foto berhasil diambil! Kirim ke Rust untuk Stacking & Compress
             try {
                 val rustResultBytes = NativeLib.processHDRAndCompress(
                     capturedBytesList[0],
                     capturedBytesList[1],
                     capturedBytesList[2]
                 )
-
-                // Decode hasil matang dari Rust kembali ke Bitmap
                 val baseBitmap = BitmapFactory.decodeByteArray(rustResultBytes, 0, rustResultBytes.size)
-
-                // Perbaiki rotasi orientasi gambar berdasarkan info sensor kamera
                 val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
                 val rotatedBitmap = Bitmap.createBitmap(baseBitmap, 0, 0, baseBitmap.width, baseBitmap.height, matrix, true)
-
-                // Tempelkan watermark dari Kotlin di atas hasil matang Rust
                 val finalBitmap = WatermarkManager.apply(rotatedBitmap, currentLoc, currentAddr, opt)
-
-                // Simpan hasil akhir ke galeri
                 FileManager.saveImageToGallery(context, finalBitmap, true)
-                
-                // Tampilkan ke UI Preview
                 onRes(finalBitmap)
             } catch (e: Exception) {
-                Log.e("Err", "Rust Processing Failed: $e")
+                Log.e("Err", "Rust Stacking Error: $e")
             } finally {
-                // Kembalikan setelan eksposur kamera ke normal (0)
                 cameraControl.setExposureCompensationIndex(0)
             }
             return
         }
 
-        // Setel tingkat kecerahan sensor untuk jepretan saat ini
+        // Setel Exposure
         cameraControl.setExposureCompensationIndex(exposures[index])
 
-        // Trigger jepretan CameraX
-        c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(img: ImageProxy) {
-                rotationDegrees = img.imageInfo.rotationDegrees
-                
-                // Ubah ImageProxy langsung ke format kompresi ByteArray di RAM tanpa alokasi Bitmap Java
-                val buffer = img.planes[0].buffer
-                val bytes = ByteArray(buffer.remaining())
-                buffer.get(bytes)
-                
-                capturedBytesList.add(bytes)
-                img.close()
-
-                // Lanjut ke jepretan berikutnya
-                captureStep(index + 1)
-            }
-
-            override fun onError(e: ImageCaptureException) {
-                Log.e("Err", "Capture step $index failed: $e")
-                cameraControl.setExposureCompensationIndex(0)
-            }
-        })
+        // Beri jeda 300ms agar hardware sensor benar-benar berubah kecerahannya
+        handler.postDelayed({
+            c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(img: ImageProxy) {
+                    rotationDegrees = img.imageInfo.rotationDegrees
+                    val buffer = img.planes[0].buffer
+                    val bytes = ByteArray(buffer.remaining())
+                    buffer.get(bytes)
+                    capturedBytesList.add(bytes)
+                    img.close()
+                    captureStep(index + 1)
+                }
+                override fun onError(e: ImageCaptureException) {
+                    Log.e("Err", "Capture fail: $e")
+                    cameraControl.setExposureCompensationIndex(0)
+                }
+            })
+        }, 300) 
     }
-
-    // Mulai rentetan jepretan pertama
     captureStep(0)
 }
