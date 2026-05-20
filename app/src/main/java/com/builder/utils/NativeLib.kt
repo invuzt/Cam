@@ -2,12 +2,17 @@ package com.builder.utils
 
 object NativeLib {
     init {
-        // Nama library harus sama dengan name di Cargo.toml
+        // Nama biner native sesuai dengan Cargo.toml
         System.loadLibrary("rust_engine")
     }
 
     /**
-     * Memanggil fungsi Rust untuk memproses HDR dan Kompresi
+     * Mengirim 3 biner foto dengan exposure berbeda ke Rust
+     * untuk diproses menggunakan algoritma HDR Stacking & kompresi paralel.
      */
-    external fun processHDRAndCompress(inputData: ByteArray): ByteArray
+    external fun processHDRAndCompress(
+        imgDark: ByteArray,
+        imgNormal: ByteArray,
+        imgBright: ByteArray
+    ): ByteArray
 }
