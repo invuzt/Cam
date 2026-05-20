@@ -22,8 +22,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true        # Menghapus kode Java/Kotlin yang tidak terpakai
-            shrinkResources true      # Menghapus resource/asset yang tidak terpakai
+            minifyEnabled true        // Menghapus kode Java/Kotlin yang tidak terpakai
+            shrinkResources true      // Menghapus resource/asset yang tidak terpakai
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             
             // Mencegah pembengkakan dari sisa-sisa debug symbol
