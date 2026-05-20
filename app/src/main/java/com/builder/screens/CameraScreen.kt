@@ -72,7 +72,10 @@ fun CameraScreen(
             Box(Modifier.fillMaxSize().alpha(alpha).background(Color.White))
             
             SmallFloatingActionButton(
-                onClick = onNavigateToSettings,
+                onClick = { 
+                    // Pastikan state dibersihkan sebelum pindah layar agar saat kembali state tetap fresh
+                    onNavigateToSettings() 
+                },
                 modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
                 containerColor = Color.Black.copy(0.5f),                                                                    
                 contentColor = Color.White
@@ -131,7 +134,6 @@ private fun takePhoto(
     })
 }
 
-// Alur Baru: 1 Jepret (Anti-Blur) & Kirim ke Rust untuk Vivid Color
 private fun takePhotoVivid(
     context: Context,
     c: LifecycleCameraController,
@@ -140,47 +142,28 @@ private fun takePhotoVivid(
     currentAddr: String,
     onRes: (Bitmap) -> Unit
 ) {
-    // 1. Ambil hanya SATU foto (Cepat & Anti-Blur)
     c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
         override fun onCaptureSuccess(img: ImageProxy) {
             val rotationDegrees = img.imageInfo.rotationDegrees
-
-            // 2. Ubah langsung ke ByteArray di RAM Kotlin
             val buffer = img.planes[0].buffer
             val bytes = ByteArray(buffer.remaining())
             buffer.get(bytes)
             img.close()
 
-            // 3. Lempar ke Rust Engine untuk Color Grading masif (Rayon Multi-core)
             try {
                 val vividResultBytes = NativeLib.processVividEnhance(bytes)
-
-                // 4. Decode hasil Vivid Rust kembali ke Bitmap
                 val baseBitmap = BitmapFactory.decodeByteArray(vividResultBytes, 0, vividResultBytes.size)
-
-                // 5. Perbaiki rotasi
                 val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
                 val rotatedBitmap = Bitmap.createBitmap(baseBitmap, 0, 0, baseBitmap.width, baseBitmap.height, matrix, true)
-
-                // 6. Tempelkan watermark dari Kotlin di atas hasil matang Rust
                 val finalBitmap = WatermarkManager.apply(rotatedBitmap, currentLoc, currentAddr, opt)
-
-                // 7. Simpan hasil akhir ke galeri
                 FileManager.saveImageToGallery(context, finalBitmap, true)
-                
-                // Tampilkan ke UI Preview
                 onRes(finalBitmap)
             } catch (e: Exception) {
                 Log.e("Err", "Rust Vivid Enhancement Failed: $e")
-                // Jika gagal, tampilkan toast dan gunakan foto biasa tanpa enhance
-                Toast.makeText(context, "Enhance failed, saving normal photo", Toast.LENGTH_SHORT).show()
                 val normalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 onRes(normalBitmap)
             }
         }
-
-        override fun onError(e: ImageCaptureException) {
-            Log.e("Err", "Vivid Capture failed: $e")
-        }
+        override fun onError(e: ImageCaptureException) { Log.e("Err", "Vivid Capture failed: $e") }
     })
 }
