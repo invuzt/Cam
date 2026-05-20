@@ -1,55 +1,110 @@
 package com.builder.screens
 
+import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("camru_prefs", Context.MODE_PRIVATE) }
+    
+    // Sinkronisasi State dengan Gambar yang diupload
+    var isHq by remember { mutableStateOf(prefs.getBoolean("hq", true)) }
+    var isPro by remember { mutableStateOf(prefs.getBoolean("is_pro", false)) }
+    var showTime by remember { mutableStateOf(prefs.getBoolean("w_time", true)) }
+    var showDate by remember { mutableStateOf(prefs.getBoolean("w_date", true)) }
+    var showCoords by remember { mutableStateOf(prefs.getBoolean("w_coords", true)) }
+    var showAddr by remember { mutableStateOf(prefs.getBoolean("w_addr", true)) }
+    var removeBrand by remember { mutableStateOf(prefs.getBoolean("w_remove_brand", false)) }
+    var customText by remember { mutableStateOf(prefs.getString("w_custom", "") ?: "") }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text("Settings", color = Color.White) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF121212))
             )
-        }
+        },
+        containerColor = Color(0xFF121212)
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
-            // Menggunakan Card untuk grouping sesuai saran video UI
+            Text("Watermark Config", color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Switch items sesuai screenshot
+            SettingRow("High Quality Photo (Slow Save)", isHq) { isHq = it; prefs.edit().putBoolean("hq", it).apply() }
+            SettingRow("Aktivasi Lisensi Pro (Premium)", isPro) { isPro = it; prefs.edit().putBoolean("is_pro", it).apply() }
+            
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color.DarkGray)
+
+            SettingRow("Tampilkan Jam", showTime) { showTime = it; prefs.edit().putBoolean("w_time", it).apply() }
+            SettingRow("Tampilkan Hari & Tanggal", showDate) { showDate = it; prefs.edit().putBoolean("w_date", it).apply() }
+            SettingRow("Tampilkan Koordinat", showCoords) { showCoords = it; prefs.edit().putBoolean("w_coords", it).apply() }
+            SettingRow("Tampilkan Alamat", showAddr) { showAddr = it; prefs.edit().putBoolean("w_addr", it).apply() }
+            SettingRow("Hilangkan Watermark 'Shot by CakRu'", removeBrand) { removeBrand = it; prefs.edit().putBoolean("w_remove_brand", it).apply() }
+
+            OutlinedTextField(
+                value = customText,
+                onValueChange = { customText = it; prefs.edit().putString("w_custom", it).apply() },
+                label = { Text("Teks Kustom", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                textStyle = LocalTextStyle.current.copy(color = Color.White)
+            )
+
+            // About App Section
+            Text("About App", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(8.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Engine: Vivid Rust Core", style = MaterialTheme.typography.titleMedium)
+                    Text("Developer: CakRu", color = Color.Yellow, fontWeight = FontWeight.Bold)
+                    Text("License: Open Source (MIT)", color = Color.Gray, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Status: Active (Auto-Enhance)", style = MaterialTheme.typography.bodySmall)
+                    Text("Engine Dependencies:", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    val deps = listOf("Jetpack Compose", "CameraX", "Google Play Services", "Kotlin Coroutines")
+                    deps.forEach { Text("• $it", color = Color.Gray, fontSize = 12.sp) }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(20.dp))
-            
-            // Tombol Back yang lebar (Easy to tap)
-            Button(
-                onClick = onBack,
-                modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) {
-                Text("Simpan & Kembali")
-            }
         }
+    }
+}
+
+@Composable
+fun SettingRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.White, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
