@@ -3,8 +3,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.camera.core.CameraSelector            
@@ -94,8 +92,8 @@ fun CameraScreen(
                     onClick = {
                         showFlash = true                                      
                         if (useRustEnhance) {
-                            Toast.makeText(context, "Enhancing Photo with Rust...", Toast.LENGTH_SHORT).show()
-                            takePhotoHDR(context, controller, options, currentLoc, currentAddress) { preview = it }
+                            Toast.makeText(context, "Applying Rust Vivid Effect...", Toast.LENGTH_SHORT).show()
+                            takePhotoVivid(context, controller, options, currentLoc, currentAddress) { preview = it }
                         } else {
                             takePhoto(context, controller, isHighQuality, options, currentLoc, currentAddress) { preview = it }
                         }
@@ -133,7 +131,8 @@ private fun takePhoto(
     })
 }
 
-private fun takePhotoHDR(
+// Alur Baru: 1 Jepret (Anti-Blur) & Kirim ke Rust untuk Vivid Color
+private fun takePhotoVivid(
     context: Context,
     c: LifecycleCameraController,
     opt: WatermarkOptions,
@@ -141,55 +140,47 @@ private fun takePhotoHDR(
     currentAddr: String,
     onRes: (Bitmap) -> Unit
 ) {
-    val cameraControl = c.cameraControl ?: return
-    val exposures = listOf(-3, 0, 3) // Menambah rentang agar efek HDR lebih kontras
-    val capturedBytesList = mutableListOf<ByteArray>()
-    var rotationDegrees = 0
-    val handler = Handler(Looper.getMainLooper())
+    // 1. Ambil hanya SATU foto (Cepat & Anti-Blur)
+    c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
+        override fun onCaptureSuccess(img: ImageProxy) {
+            val rotationDegrees = img.imageInfo.rotationDegrees
 
-    fun captureStep(index: Int) {
-        if (index >= exposures.size) {
+            // 2. Ubah langsung ke ByteArray di RAM Kotlin
+            val buffer = img.planes[0].buffer
+            val bytes = ByteArray(buffer.remaining())
+            buffer.get(bytes)
+            img.close()
+
+            // 3. Lempar ke Rust Engine untuk Color Grading masif (Rayon Multi-core)
             try {
-                val rustResultBytes = NativeLib.processHDRAndCompress(
-                    capturedBytesList[0],
-                    capturedBytesList[1],
-                    capturedBytesList[2]
-                )
-                val baseBitmap = BitmapFactory.decodeByteArray(rustResultBytes, 0, rustResultBytes.size)
+                val vividResultBytes = NativeLib.processVividEnhance(bytes)
+
+                // 4. Decode hasil Vivid Rust kembali ke Bitmap
+                val baseBitmap = BitmapFactory.decodeByteArray(vividResultBytes, 0, vividResultBytes.size)
+
+                // 5. Perbaiki rotasi
                 val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
                 val rotatedBitmap = Bitmap.createBitmap(baseBitmap, 0, 0, baseBitmap.width, baseBitmap.height, matrix, true)
+
+                // 6. Tempelkan watermark dari Kotlin di atas hasil matang Rust
                 val finalBitmap = WatermarkManager.apply(rotatedBitmap, currentLoc, currentAddr, opt)
+
+                // 7. Simpan hasil akhir ke galeri
                 FileManager.saveImageToGallery(context, finalBitmap, true)
+                
+                // Tampilkan ke UI Preview
                 onRes(finalBitmap)
             } catch (e: Exception) {
-                Log.e("Err", "Rust Stacking Error: $e")
-            } finally {
-                cameraControl.setExposureCompensationIndex(0)
+                Log.e("Err", "Rust Vivid Enhancement Failed: $e")
+                // Jika gagal, tampilkan toast dan gunakan foto biasa tanpa enhance
+                Toast.makeText(context, "Enhance failed, saving normal photo", Toast.LENGTH_SHORT).show()
+                val normalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                onRes(normalBitmap)
             }
-            return
         }
 
-        // Setel Exposure
-        cameraControl.setExposureCompensationIndex(exposures[index])
-
-        // Beri jeda 300ms agar hardware sensor benar-benar berubah kecerahannya
-        handler.postDelayed({
-            c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(img: ImageProxy) {
-                    rotationDegrees = img.imageInfo.rotationDegrees
-                    val buffer = img.planes[0].buffer
-                    val bytes = ByteArray(buffer.remaining())
-                    buffer.get(bytes)
-                    capturedBytesList.add(bytes)
-                    img.close()
-                    captureStep(index + 1)
-                }
-                override fun onError(e: ImageCaptureException) {
-                    Log.e("Err", "Capture fail: $e")
-                    cameraControl.setExposureCompensationIndex(0)
-                }
-            })
-        }, 300) 
-    }
-    captureStep(0)
+        override fun onError(e: ImageCaptureException) {
+            Log.e("Err", "Vivid Capture failed: $e")
+        }
+    })
 }

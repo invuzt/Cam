@@ -7,12 +7,8 @@ object NativeLib {
     }
 
     /**
-     * Mengirim 3 biner foto dengan exposure berbeda ke Rust
-     * untuk diproses menggunakan algoritma HDR Stacking & kompresi paralel.
+     * Mengirim 1 biner foto ke Rust untuk diwarnai ulang
+     * (Vivid Color Grading) agar warna Biru & Oranye lebih Standout.
      */
-    external fun processHDRAndCompress(
-        imgDark: ByteArray,
-        imgNormal: ByteArray,
-        imgBright: ByteArray
-    ): ByteArray
+    external fun processVividEnhance(inputData: ByteArray): ByteArray
 }
