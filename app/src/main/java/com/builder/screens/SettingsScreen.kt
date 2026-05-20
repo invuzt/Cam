@@ -25,10 +25,11 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("camru_prefs", Context.MODE_PRIVATE) }
-    
+
     var isHighQuality by remember { mutableStateOf(prefs.getBoolean("hq", true)) }
     var isPremium by remember { mutableStateOf(prefs.getBoolean("is_premium", false)) }
-    
+    var useRustCompress by remember { mutableStateOf(prefs.getBoolean("use_rust_compress", false)) }
+
     var options by remember {
         mutableStateOf(
             WatermarkOptions(
@@ -63,9 +64,25 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Text("Engine Optimization", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Cyan)
+            Spacer(Modifier.height(12.dp))
+
+            // FITUR BARU: Toggle Khusus untuk mengaktifkan kompresi Rust
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Photo Compress (Rust Engine)", fontWeight = FontWeight.Bold, color = if(useRustCompress) Color.Cyan else Color.White)
+                    Text("Kompresi gambar ultra cepat via biner native Rust + Rayon", fontSize = 12.sp, color = Color.Gray)
+                }
+                Switch(useRustCompress, { active ->
+                    useRustCompress = active
+                    prefs.edit().putBoolean("use_rust_compress", active).apply()
+                }, Modifier.scale(0.8f), colors = SwitchDefaults.colors(checkedThumbColor = Color.Cyan, checkedTrackColor = Color.Cyan.copy(0.4f)))
+            }
+
+            Spacer(Modifier.height(16.dp))
             Text("Watermark Config", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Yellow)
             Spacer(Modifier.height(12.dp))
-            
+
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("High Quality Photo (Slow Save)")
                 Switch(isHighQuality, { active ->
@@ -73,7 +90,7 @@ fun SettingsScreen(
                     prefs.edit().putBoolean("hq", active).apply()
                 }, Modifier.scale(0.8f))
             }
-            
+
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Aktivasi Lisensi Pro (Premium)", color = if(isPremium) Color.Yellow else Color.White)
                 Switch(isPremium, { active ->
@@ -85,34 +102,34 @@ fun SettingsScreen(
                     }
                 }, Modifier.scale(0.8f))
             }
-            
+
             HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Color.DarkGray)
-            
-            SettingToggle("Tampilkan Jam", options.showTime) { 
+
+            SettingToggle("Tampilkan Jam", options.showTime) {
                 options = options.copy(showTime = it)
                 prefs.edit().putBoolean("w_time", it).apply()
             }
-            SettingToggle("Tampilkan Hari & Tanggal", options.showDate) { 
+            SettingToggle("Tampilkan Hari & Tanggal", options.showDate) {
                 options = options.copy(showDate = it)
                 prefs.edit().putBoolean("w_date", it).apply()
             }
-            SettingToggle("Tampilkan Koordinat", options.showCoords) { 
+            SettingToggle("Tampilkan Koordinat", options.showCoords) {
                 options = options.copy(showCoords = it)
                 prefs.edit().putBoolean("w_coords", it).apply()
             }
-            SettingToggle("Tampilkan Alamat", options.showAddress) { 
+            SettingToggle("Tampilkan Alamat", options.showAddress) {
                 options = options.copy(showAddress = it)
                 prefs.edit().putBoolean("w_addr", it).apply()
             }
-            
+
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text(
-                    text = "Hilangkan Watermark 'Shot by CakRu'", 
+                    text = "Hilangkan Watermark 'Shot by CakRu'",
                     fontSize = 14.sp,
                     color = if (isPremium) Color.White else Color.Gray
                 )
                 Switch(
-                    checked = options.removeBrand, 
+                    checked = options.removeBrand,
                     onCheckedChange = { active ->
                         if (isPremium) {
                             options = options.copy(removeBrand = active)
@@ -123,7 +140,7 @@ fun SettingsScreen(
                     modifier = Modifier.scale(0.7f)
                 )
             }
-            
+
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = options.customText,
@@ -151,7 +168,7 @@ fun SettingsScreen(
                     Text("License: Open Source (MIT)", fontSize = 13.sp, color = Color.LightGray)
                     Spacer(Modifier.height(12.dp))
                     Text("Engine Dependencies:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text("• Jetpack Compose (Modern UI Ecosystem)\n• CameraX (Core Camera Subsystem)\n• Google Play Services (High-Precision GPS)\n• Kotlin Coroutines (Asynchronous Concurrency)", fontSize = 12.sp, color = Color.Gray)
+                    Text("• Jetpack Compose (Modern UI Ecosystem)\n• CameraX (Core Camera Subsystem)\n• Google Play Services (High-Precision GPS)\n• Kotlin Coroutines (Asynchronous Concurrency)\n• Rust Engine (Parallel Native Image Encoding)", fontSize = 12.sp, color = Color.Gray)
                 }
             }
             Spacer(Modifier.height(16.dp))
