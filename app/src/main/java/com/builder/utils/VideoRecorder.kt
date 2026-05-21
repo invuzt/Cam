@@ -39,8 +39,16 @@ class VideoRecorder(private val context: Context) {
             .start(ContextCompat.getMainExecutor(context)) { recordEvent ->
                 if (recordEvent is VideoRecordEvent.Finalize) {
                     val uri = recordEvent.outputResults.outputUri
-                    // KRUSIAL: Beritahu sistem ada file video baru
-                    MediaScannerConnection.scanFile(context, arrayOf(uri.toString()), null) { _, _ -> }
+                    
+                    // Gunakan ContentResolver untuk sinkronisasi paksa
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        contentValues.clear()
+                        contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
+                        context.contentResolver.update(uri, contentValues, null, null)
+                    }
+
+                    // Scan ulang agar muncul di Gallery
+                    MediaScannerConnection.scanFile(context, arrayOf(uri.path), null) { _, _ -> }
                     onVideoSaved(uri)
                 }
             }
