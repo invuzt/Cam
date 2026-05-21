@@ -11,12 +11,11 @@
         android:icon="@mipmap/ic_launcher"
         android:label="CamRU"
         android:roundIcon="@mipmap/ic_launcher"
-        android:theme="@style/Theme.CamRU">
+        android:theme="@android:style/Theme.Material.NoActionBar">
         
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.CamRU">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
