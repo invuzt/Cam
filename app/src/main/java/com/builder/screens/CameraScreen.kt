@@ -2,6 +2,7 @@ package com.builder.screens
 
 import android.location.Location
 import androidx.camera.view.LifecycleCameraController
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -14,10 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.builder.utils.VideoRecorder
-import kotlinx.coroutines.launch
 
 @Composable
 fun CameraScreen(
@@ -27,29 +28,28 @@ fun CameraScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val videoRecorder = remember { VideoRecorder(context) }
     var isRecording by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Preview Kamera
         AndroidView(
-            factory = { controller },
+            factory = { ctx ->
+                PreviewView(ctx).apply {
+                    this.controller = controller
+                    controller.bindToLifecycle(lifecycleOwner)
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
 
-        // UI Overlay
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Baris Atas: Settings & Info
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(
                     onClick = onNavigateToSettings,
@@ -59,59 +59,40 @@ fun CameraScreen(
                 }
 
                 if (isRecording) {
-                    Text(
-                        "● REC",
-                        color = Color.Red,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier
-                            .background(Color.Black.copy(0.5f), CircleShape)
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
+                    Text("● REC", color = Color.Red, modifier = Modifier.background(Color.Black.copy(0.5f)).padding(8.dp))
                 }
             }
 
-            // Baris Bawah: Galeri, Foto, Video
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Tombol Galeri
-                IconButton(
-                    onClick = onOpenGallery,
-                    modifier = Modifier.size(56.dp).background(Color.Black.copy(0.5f), CircleShape)
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = "Gallery", tint = Color.White)
+                IconButton(onClick = onOpenGallery) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.White)
                 }
 
-                // Tombol FOTO (Vivid Rust)
-                Button(
-                    onClick = { /* Fungsi Foto Rust Kamu */ },
-                    modifier = Modifier.size(80.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-                ) {
-                    Text("IMG", color = Color.Black)
+                // Tombol Foto
+                Button(onClick = { /* Foto Logic */ }, modifier = Modifier.size(80.dp), shape = CircleShape) {
+                    Text("IMG")
                 }
 
-                // Tombol VIDEO (Kotlin Native)
+                // Tombol Video
                 Button(
                     onClick = {
                         if (isRecording) {
                             videoRecorder.stopRecording()
                             isRecording = false
                         } else {
-                            videoRecorder.startRecording { /* Handle save */ }
+                            videoRecorder.startRecording { isRecording = false }
                             isRecording = true
                         }
                     },
                     modifier = Modifier.size(70.dp),
                     shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRecording) Color.DarkGray else Color.Red
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isRecording) Color.Gray else Color.Red)
                 ) {
-                    Text(if (isRecording) "STOP" else "REC", color = Color.White)
+                    Text(if (isRecording) "STOP" else "REC")
                 }
             }
         }
