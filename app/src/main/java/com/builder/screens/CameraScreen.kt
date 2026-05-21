@@ -1,169 +1,119 @@
-package com.builder.screens                           
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.util.Log
-import android.widget.Toast
-import androidx.camera.core.CameraSelector            
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException     
-import androidx.camera.core.ImageProxy
-import androidx.camera.view.LifecycleCameraController 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image              
-import androidx.compose.foundation.background         
+package com.builder.screens
+
+import android.location.Location
+import androidx.camera.view.LifecycleCameraController
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons          
-import androidx.compose.material.icons.filled.Cameraswitch                                                  
-import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color             
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext      
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.builder.utils.*
+import androidx.compose.ui.viewinterop.AndroidView
+import com.builder.utils.VideoRecorder
+import kotlinx.coroutines.launch
 
 @Composable
 fun CameraScreen(
     controller: LifecycleCameraController,
-    currentLoc: android.location.Location?,
+    currentLoc: Location?,
     onOpenGallery: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("camru_prefs", Context.MODE_PRIVATE) }
-    val isHighQuality = prefs.getBoolean("hq", true)
-    val useRustEnhance = prefs.getBoolean("use_rust_compress", false)
+    val scope = rememberCoroutineScope()
+    val videoRecorder = remember { VideoRecorder(context) }
+    var isRecording by remember { mutableStateOf(false) }
 
-    val options = WatermarkOptions(                           
-        showTime = prefs.getBoolean("w_time", true),
-        showDate = prefs.getBoolean("w_date", true),          
-        showCoords = prefs.getBoolean("w_coords", true),
-        showAddress = prefs.getBoolean("w_addr", true),
-        customText = prefs.getString("w_custom", "") ?: "",
-        removeBrand = prefs.getBoolean("w_remove_brand", false)
-    )                                                 
-    var preview by remember { mutableStateOf<Bitmap?>(null) }
-    var showFlash by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Preview Kamera
+        AndroidView(
+            factory = { controller },
+            modifier = Modifier.fillMaxSize()
+        )
 
-    val currentAddress by produceState(initialValue = "", currentLoc) {
-        value = if (options.showAddress) LocationHelper.getAddress(context, currentLoc) else ""
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        if (preview != null) {
-            Image(bitmap = preview!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            IconButton(onClick = { preview = null }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(32.dp))
-            }
-        } else {
-            CameraPreview(controller, Modifier.fillMaxSize())
-
-            val alpha by animateFloatAsState(targetValue = if (showFlash) 1f else 0f, animationSpec = tween(100), finishedListener = { showFlash = false })
-            Box(Modifier.fillMaxSize().alpha(alpha).background(Color.White))
-            
-            SmallFloatingActionButton(
-                onClick = { 
-                    // Pastikan state dibersihkan sebelum pindah layar agar saat kembali state tetap fresh
-                    onNavigateToSettings() 
-                },
-                modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
-                containerColor = Color.Black.copy(0.5f),                                                                    
-                contentColor = Color.White
-            ) { Icon(Icons.Default.Settings, null) }
-            
+        // UI Overlay
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Baris Atas: Settings & Info
             Row(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {
-                    controller.cameraSelector = if (controller.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA)
-                        CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-                }) { Icon(Icons.Default.Cameraswitch, null, tint = Color.White) }
-                
                 IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                }
+
+                if (isRecording) {
+                    Text(
+                        "● REC",
+                        color = Color.Red,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier
+                            .background(Color.Black.copy(0.5f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Baris Bawah: Galeri, Foto, Video
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Tombol Galeri
+                IconButton(
+                    onClick = onOpenGallery,
+                    modifier = Modifier.size(56.dp).background(Color.Black.copy(0.5f), CircleShape)
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = "Gallery", tint = Color.White)
+                }
+
+                // Tombol FOTO (Vivid Rust)
+                Button(
+                    onClick = { /* Fungsi Foto Rust Kamu */ },
+                    modifier = Modifier.size(80.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                ) {
+                    Text("IMG", color = Color.Black)
+                }
+
+                // Tombol VIDEO (Kotlin Native)
+                Button(
                     onClick = {
-                        showFlash = true                                      
-                        if (useRustEnhance) {
-                            Toast.makeText(context, "Applying Rust Vivid Effect...", Toast.LENGTH_SHORT).show()
-                            takePhotoVivid(context, controller, options, currentLoc, currentAddress) { preview = it }
+                        if (isRecording) {
+                            videoRecorder.stopRecording()
+                            isRecording = false
                         } else {
-                            takePhoto(context, controller, isHighQuality, options, currentLoc, currentAddress) { preview = it }
+                            videoRecorder.startRecording { /* Handle save */ }
+                            isRecording = true
                         }
                     },
-                    modifier = Modifier.size(80.dp)
-                ) { Icon(Icons.Default.Circle, null, tint = Color.White, modifier = Modifier.size(80.dp)) }
-                
-                IconButton(onOpenGallery) { Icon(Icons.Default.PhotoLibrary, null, tint = Color.White) }
+                    modifier = Modifier.size(70.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRecording) Color.DarkGray else Color.Red
+                    )
+                ) {
+                    Text(if (isRecording) "STOP" else "REC", color = Color.White)
+                }
             }
         }
     }
-}
-
-private fun takePhoto(
-    context: Context,
-    c: LifecycleCameraController,
-    hq: Boolean,
-    opt: WatermarkOptions,
-    currentLoc: android.location.Location?,
-    currentAddr: String,
-    onRes: (Bitmap) -> Unit
-) {
-    c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
-        override fun onCaptureSuccess(img: ImageProxy) {
-            val b = img.toBitmap().let { src ->
-                val matrix = Matrix().apply { postRotate(img.imageInfo.rotationDegrees.toFloat()) }
-                Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
-            }
-            val wm = WatermarkManager.apply(b, currentLoc, currentAddr, opt)                                            
-            FileManager.saveImageToGallery(context, wm, hq)
-            onRes(wm)
-            img.close()
-        }
-        override fun onError(e: ImageCaptureException) { Log.e("Err", "$e") }
-    })
-}
-
-private fun takePhotoVivid(
-    context: Context,
-    c: LifecycleCameraController,
-    opt: WatermarkOptions,
-    currentLoc: android.location.Location?,
-    currentAddr: String,
-    onRes: (Bitmap) -> Unit
-) {
-    c.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
-        override fun onCaptureSuccess(img: ImageProxy) {
-            val rotationDegrees = img.imageInfo.rotationDegrees
-            val buffer = img.planes[0].buffer
-            val bytes = ByteArray(buffer.remaining())
-            buffer.get(bytes)
-            img.close()
-
-            try {
-                val vividResultBytes = NativeLib.processVividEnhance(bytes)
-                val baseBitmap = BitmapFactory.decodeByteArray(vividResultBytes, 0, vividResultBytes.size)
-                val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                val rotatedBitmap = Bitmap.createBitmap(baseBitmap, 0, 0, baseBitmap.width, baseBitmap.height, matrix, true)
-                val finalBitmap = WatermarkManager.apply(rotatedBitmap, currentLoc, currentAddr, opt)
-                FileManager.saveImageToGallery(context, finalBitmap, true)
-                onRes(finalBitmap)
-            } catch (e: Exception) {
-                Log.e("Err", "Rust Vivid Enhancement Failed: $e")
-                val normalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                onRes(normalBitmap)
-            }
-        }
-        override fun onError(e: ImageCaptureException) { Log.e("Err", "Vivid Capture failed: $e") }
-    })
 }
