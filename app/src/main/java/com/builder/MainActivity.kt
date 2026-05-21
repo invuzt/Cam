@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
             NavHost(navController = navController, startDestination = "camera") {
                 composable("camera") {
                     CameraScreen(
+                    onCapturePhoto = { takePhoto() },
                         controller = controller,
                         currentLoc = currentLocation,
                         onOpenGallery = {

@@ -34,7 +34,7 @@ class VideoRecorder(private val context: Context) {
             .build()
 
         recording = videoCapture.output
-            .prepareRecording(context, mediaStoreOutputOptions)
+            .prepareRecording(context, mediaStoreOutputOptions).withAudioEnabled()
             .withAudioEnabled()
             .start(ContextCompat.getMainExecutor(context)) { recordEvent ->
                 if (recordEvent is VideoRecordEvent.Finalize) {
