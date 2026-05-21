@@ -1,13 +1,14 @@
 package com.builder
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.view.LifecycleCameraController
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.remember
 import com.builder.screens.CameraScreen
-import com.builder.ui.theme.CamRUTheme
-import android.widget.Toast
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,18 +22,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            CamRUTheme {
-                CameraScreen(
-                    controller = controller,
-                    currentLoc = null,
-                    onOpenGallery = { /* Logic Galeri */ },
-                    onNavigateToSettings = { /* Logic Settings */ },
-                    onCapturePhoto = {
-                        // Logika jepret langsung di sini agar pasti work
-                        Toast.makeText(context, "Capturing with Vivid Rust...", Toast.LENGTH_SHORT).show()
-                        // Di sini panggil fungsi Rust JNI kamu nantinya
-                    }
-                )
+            MaterialTheme {
+                Surface {
+                    CameraScreen(
+                        controller = controller,
+                        currentLoc = null,
+                        onOpenGallery = { 
+                            Toast.makeText(context, "Membuka Galeri...", Toast.LENGTH_SHORT).show()
+                        },
+                        onNavigateToSettings = { 
+                            Toast.makeText(context, "Ke Settings...", Toast.LENGTH_SHORT).show()
+                        },
+                        onCapturePhoto = {
+                            Toast.makeText(context, "Jepret dengan Vivid Rust!", Toast.LENGTH_SHORT).show()
+                            // Nanti panggil fungsi JNI Rust di sini
+                        }
+                    )
+                }
             }
         }
     }
