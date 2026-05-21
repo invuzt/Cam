@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -22,7 +23,6 @@ import androidx.core.content.ContextCompat
 import com.builder.screens.CameraScreen
 import com.builder.screens.SettingsScreen
 import com.builder.utils.NativeLib
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,12 +31,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request Permissions
-        val permissions = arrayOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
+        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         if (permissions.any { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }) {
             ActivityCompat.requestPermissions(this, permissions, 101)
         }
@@ -62,6 +57,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateToSettings = { currentScreen = "settings" },
                             onCapturePhoto = {
                                 val useRust = prefs.getBoolean("use_rust_compress", true)
+                                // Ambil juga info watermark jika perlu diproses di Rust
                                 capturePhoto(controller, useRust)
                             }
                         )
@@ -82,29 +78,24 @@ class MainActivity : ComponentActivity() {
                     buffer.get(bytes)
                     image.close()
 
-                    // Proses Rust jika aktif
-                    val finalBytes = if (useRust) {
-                        NativeLib.processVividEnhance(bytes)
-                    } else {
-                        bytes
-                    }
-
+                    val finalBytes = if (useRust) NativeLib.processVividEnhance(bytes) else bytes
                     saveImageToGallery(finalBytes)
-                    runOnUiThread { Toast.makeText(applicationContext, "Vivid Photo Saved!", Toast.LENGTH_SHORT).show() }
+                    
+                    runOnUiThread { Toast.makeText(applicationContext, "Photo Saved!", Toast.LENGTH_SHORT).show() }
                 }
 
-                override fun onError(exception: ImageCaptureException) {
-                    runOnUiThread { Toast.makeText(applicationContext, "Error: ${exception.message}", Toast.LENGTH_SHORT).show() }
+                override fun onError(exc: ImageCaptureException) {
+                    runOnUiThread { Toast.makeText(applicationContext, "Error: ${exc.message}", Toast.LENGTH_SHORT).show() }
                 }
             }
         )
     }
 
     private fun saveImageToGallery(bytes: ByteArray) {
-        val name = "CamRU_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val name = "CamRU_IMG_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.DISPLAY_NAME, name)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
             if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/CamRU")
             }
@@ -112,9 +103,9 @@ class MainActivity : ComponentActivity() {
 
         val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
         uri?.let {
-            contentResolver.openOutputStream(it)?.use { outputStream ->
-                outputStream.write(bytes)
-            }
+            contentResolver.openOutputStream(it)?.use { it.write(bytes) }
+            // SCANNER untuk Image
+            MediaScannerConnection.scanFile(this, arrayOf(it.toString()), null, null)
         }
     }
 }

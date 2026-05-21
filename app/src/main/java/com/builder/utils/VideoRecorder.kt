@@ -19,10 +19,10 @@ class VideoRecorder(private val context: Context) {
     val videoCapture = VideoCapture.withOutput(recorder)
 
     fun startRecording(onVideoSaved: (Uri?) -> Unit) {
-        val name = "CamRU_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
+        val name = "CamRU_VID_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.DISPLAY_NAME, name)
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
             if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CamRU-Video")
             }
@@ -34,13 +34,13 @@ class VideoRecorder(private val context: Context) {
             .build()
 
         recording = videoCapture.output
-            .prepareRecording(context, mediaStoreOutputOptions).withAudioEnabled()
+            .prepareRecording(context, mediaStoreOutputOptions)
             .withAudioEnabled()
             .start(ContextCompat.getMainExecutor(context)) { recordEvent ->
                 if (recordEvent is VideoRecordEvent.Finalize) {
                     val uri = recordEvent.outputResults.outputUri
-                    // Paksa galeri scan file baru
-                    MediaScannerConnection.scanFile(context, arrayOf(uri.path), null, null)
+                    // KRUSIAL: Beritahu sistem ada file video baru
+                    MediaScannerConnection.scanFile(context, arrayOf(uri.toString()), null) { _, _ -> }
                     onVideoSaved(uri)
                 }
             }
